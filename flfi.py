@@ -40,9 +40,22 @@ parser.add_argument('-f', '--file', dest="search_file", required=False, type=str
     help="File to be searched for, if not specified I will attempt to search from \
         a list of common files")
 
+parser.add_argument('-A', required=False, default=False, action=argparse.BooleanOptionalAction)
 args = parser.parse_args()
+
 url = args.url
-dts=['../', '....//',".%2e/"]
+s_file = args.search_file
+
+
+# Common Directory Traversal strings
+dts=['../', '....//',]
+# Common and UNCOMMON strings
+if all:
+    dts=['../', '....//','.%2e/']
+
+
+
+
 nbyte = ['','/.','%00']
 max_depth=12
 
@@ -50,11 +63,8 @@ max_depth=12
 # Check url for http prefix and check for proper format. 
 def clean_url(url):
     if ('?' not in url) or ('=' not in url):
-        print("\nThe provided URL does not appear to have a query string to check \
-            for vulnerabilities. The URL should look something like this: \
-            http://10.10.136.177/lab6.php?file=")
-        print("If you need more help please check out this room on Try Hack Me: \
-            https://tryhackme.com/room/lfibasics")
+        print("\nThe provided URL does not appear to have a query string to check for vulnerabilities. The URL should look something like this: http://10.10.136.177/lab6.php?file=")
+        print("If you need more help please check out this room on Try Hack Me: https://tryhackme.com/room/lfibasics")
     if url[0:4] != "http":
         url = "http://" + url
     return url
