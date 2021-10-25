@@ -290,9 +290,9 @@ class FLFI:
             r=subprocess.getoutput('curl -s -d "' + self.curr_post_param + '" -X POST ' + self.curr_url)
             for check in f['checks']:
                 if check in r:
-                    print("--------------------------------------------------")
+                    print("----------------------------------------------------------------------------------")
                     print("[+] FOUND " + self.curr_file + " at: " + self.curr_url + " with POST " + self.curr_post_param)
-                    print("--------------------------------------------------\n")
+                    print("----------------------------------------------------------------------------------\n")
                     if self.print_file:
                         print(r)
                     break
