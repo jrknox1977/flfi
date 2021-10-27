@@ -9,8 +9,6 @@
 ``` 
  - the following arguments are required: -u/--url
 
-usage: flfi.py [-h] -u URL [-f SEARCH_FILE] [-d PARAM_DATA] [-c CHECK_STR] [-C] [--cookie-include] [--folder FOLDER] [-A] [-P] [--post-include] [-m MAX_DEPTH] [-o] [--RCE] [-i HOST_IP] [-p PORT]
-
 optional arguments:
   -h, --help            show this help message and exit
   -u URL, --url URL     Provide a target URL. If you are testing specific params please use --param or --params
@@ -28,6 +26,11 @@ optional arguments:
   --post-include        Chagne HTTP method to INCLUDE POST (Default is GET)
   -m MAX_DEPTH, --max MAX_DEPTH
                         Sets the max depth of traversal.(Default is 12)
-
+  -o, --print           If files results are found print directly to terminal.
+  --RCE                 Will attempt RCE on target. Default is command is echo Hello FLFI!
+  --RCE-basic-shell     Execute basic reverse shell, MAKE SURE to start a listener on the same port you specified in --lport
+  --lhost LHOST         Set the local host for RCE
+  --lport LPORT         Port for reverse shell
+  --rport RPORT         Port Target will use to connect to the local listener for shell.
   ```
 
